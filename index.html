@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apple Pay Integration</title>
+<script crossorigin src="https://applepay.cdn-apple.com/jsapi/1.latest/apple-pay-sdk.js"></script> 
+<style>
+
+apple-pay-button {
+--apple-pay-button-width: 150px;
+--apple-pay-button-height: 30px;
+--apple-pay-button-border-radius: 3px;
+--apple-pay-button-padding: 0px 0px;
+--apple-pay-button-box-sizing: border-box;
+}
+</style>
+</head>
+<body>
+<apple-pay-button buttonstyle="white-outline" type="pay" locale="en-US"  onclick="onApplePayButtonClicked()"></apple-pay-button>
+
+<script>
+function onApplePayButtonClicked() {
+if (!ApplePaySession) {
+return;
+}
+
+const request = {
+countryCode: 'US',
+currencyCode: 'USD',
+merchantCapabilities: [ 'supports3DS', 'supportsCredit', 'supportsDebit' ],
+supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
+total: {
+label: 'Demo',
+type: 'final',
+amount: '1.99'
+}
+};
+
+// Create ApplePaySession
+const session = new ApplePaySession(3, request);
+
+session.onvalidatemerchant = function (event) { 
+var promise = performValidation(event.validationURL);
+promise.then(function (merchantSession) {
+session.completeMerchantValidation(merchantSession);
+}); 
+}
+function performValidation(valURL) {
+var AppleDisplayName ="Demo";
+return new Promise(function(resolve, reject) {
+var xhr = new XMLHttpRequest();
+xhr.onload = function() {
+var data = JSON.parse(this.responseText); 
+resolve(data);
+};
+xhr.onerror = reject; 
+xhr.open('GET', 'https://<<hostname>>/backendvalidation?u='+valURL+'&Display='+AppleDisplayName);
+xhr.send();
+});
+}
+
+session.onpaymentmethodselected = function(event) {
+console.log("Payment method selected:", event.paymentMethod);
+
+// Example of payment method details
+var paymentMethod = event.paymentMethod;
+
+// Update the total amount based on the selected payment method (optional logic)
+var newTotal = {
+label: "Demo",  // This could be your store name or "Total"
+amount: "1.99"  // Replace with the actual amount
+};
+
+var newLineItems = [
+{
+label: "Demo",  // This could be your store name or "Total"
+amount: "1.99"  // Replace with the actual amount
+}/*,
+{
+label: "Item 2",
+amount: "29.99"  // Replace with actual item price
+}*/
+];
+
+// Complete the payment method selection with updated total and line items
+session.completePaymentMethodSelection({
+newTotal: newTotal,  // New total to be charged
+newLineItems: newLineItems  // Optional updated line items
+});
+
+console.log("Payment method selected and updated.");
+};
+
+
+
+
+session.onshippingmethodselected = function(event) {
+console.log("Shipping method selected:", event.shippingMethod);
+const update = {}; // Process and update shipping methods if needed
+session.completeShippingMethodSelection(update);
+};
+
+session.onshippingcontactselected = function(event) {
+console.log("Shipping contact selected:", event.shippingContact);
+const update = {}; // Process and update shipping contact details
+session.completeShippingContactSelection(update);
+};
+
+session.onpaymentauthorized = function(event) {
+var promise = sendPaymentToken(event.payment.token);
+promise.then(function (success) {   
+var status;
+if (success){
+status = ApplePaySession.STATUS_SUCCESS; 
+} else {
+status = ApplePaySession.STATUS_FAILURE;
+} 
+session.completePayment(status);
+alert("Payment Completed.");
+});
+};
+function sendPaymentToken(paymentToken) { 
+return new Promise(function(resolve, reject) { 
+if (paymentToken) { 
+resolve(true); // Resolve the promise if the token is valid
+} else {
+reject(new Error("Invalid payment token")); // Reject if no payment token is passed
+}
+});
+}
+// Begin the session
+session.begin();
+}
+</script>
+</body>
+</html>
